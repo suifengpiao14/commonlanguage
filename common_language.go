@@ -124,7 +124,6 @@ func NewEmailField(email string) (f *sqlbuilder.Field) {
 	f.MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 32,
-		MinLength: 5,
 		RegExp:    `([A-Za-z0-9\-]+\.)+[A-Za-z]{2,6}`, // 邮箱验证表达式
 	})
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
