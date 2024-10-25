@@ -1,6 +1,8 @@
 package commonlanguage
 
 import (
+	"time"
+
 	"github.com/suifengpiao14/sqlbuilder"
 )
 
@@ -46,8 +48,42 @@ func NewCreatedAt(time string) (f *sqlbuilder.Field) {
 	})
 	return f
 }
+func NewCompletedAt(time string) (f *sqlbuilder.Field) {
+	f = NewTime(time).SetName("completedAt").SetTitle("完成时间")
+	f.Apply(sqlbuilder.ApplyFnValueFnSetIfEmpty) // 为空才更新,使用第一次数据
+	return f
+}
 func NewUpdatedAt(time string) (f *sqlbuilder.Field) {
 	f = NewTime(time).SetName("updatedAt").SetTitle("更新时间").SetTag(sqlbuilder.Tag_updatedAt)
+	return f
+}
+
+// NewDeletedAt 通过删除时间列标记删除
+func NewDeletedAt() (f *sqlbuilder.Field) {
+	f = sqlbuilder.NewField("").SetName("deleted_at").SetTitle("删除时间")
+	f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.Append(sqlbuilder.ValueFnShieldForWrite)
+	})
+	f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.Append(sqlbuilder.ValueFnShieldForWrite)
+	})
+	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.ResetSetValueFn(func(inputValue any) (any, error) {
+			return "", nil
+		})
+		f.WhereFns.Append(sqlbuilder.ValueFnForward)
+	})
+
+	//设置删除场景
+	f.SceneFn(sqlbuilder.SceneFn{
+		Scene: sqlbuilder.SCENE_SQL_DELETE,
+		Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.ValueFns.ResetSetValueFn(func(in any) (any, error) {
+				return time.Now().Local().Format(time.DateTime), nil
+			})
+		},
+	})
+
 	return f
 }
 
@@ -119,7 +155,7 @@ const (
 	Schema_format_phone = "phone"
 )
 
-func NewEmailField(email string) (f *sqlbuilder.Field) {
+func NewEmail(email string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewField(func(in any) (any, error) { return email, nil }).SetName("email").SetTitle("邮箱").SetFormat(Schema_format_email)
 	f.MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
@@ -132,7 +168,7 @@ func NewEmailField(email string) (f *sqlbuilder.Field) {
 	return f
 }
 
-func NewPhoneField(phone string) (f *sqlbuilder.Field) {
+func NewPhone(phone string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewField(func(in any) (any, error) { return phone, nil })
 	f.SetName("phone").SetTitle("手机号").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
@@ -160,7 +196,7 @@ func NewEnumField(value any, enums sqlbuilder.Enums) *EnumField {
 	return e
 }
 
-func NewGenderField[T int | string](val T, man T, woman T) *EnumField {
+func NewGender[T int | string](val T, man T, woman T) *EnumField {
 	genderField := NewEnumField(val, sqlbuilder.Enums{
 		sqlbuilder.Enum{
 			Key:   man,
@@ -204,7 +240,7 @@ func NewBooleanField[T int | string](val T, enumTrue T, enumFalse T) *EnumField 
 	return genderField
 }
 
-func NewAddressField(address string) (f *sqlbuilder.Field) {
+func NewAddress(address string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewField(func(in any) (any, error) { return address, nil }).SetName("address").SetTitle("地址").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 128, // 线上统计最大55个字符，设置128 应该适合大部分场景大小
@@ -213,11 +249,56 @@ func NewAddressField(address string) (f *sqlbuilder.Field) {
 	return f
 }
 
-func NewHeightField(height int) (f *sqlbuilder.Field) {
+func NewHeight(height int) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewField(func(in any) (any, error) { return height, nil }).SetName("height").SetTitle("高").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_int,
 		MaxLength: 10000, //日常物体、人、动物高不操过1万m/cm
 	})
 	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	return f
+}
+
+func NewOwnerID[T int | string | int64](value T) *sqlbuilder.Field {
+	field := sqlbuilder.NewField(func(in any) (any, error) { return value, nil }).SetName("ownerId").SetTitle("所有者").MergeSchema(sqlbuilder.Schema{
+		Comment:      "所有者ID",
+		Type:         sqlbuilder.Schema_Type_string,
+		MaxLength:    64,
+		MinLength:    1,
+		Minimum:      1,
+		ShieldUpdate: true, // 所有者不可跟新
+	})
+	field.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.SetRequired(true)
+	})
+	field.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	return field
+}
+
+func NewIdentifier(value any) *sqlbuilder.Field {
+	f := sqlbuilder.NewField(func(in any) (any, error) { return value, nil }).SetName("identity").SetTitle("标识")
+	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	})
+	return f
+}
+
+func NewTitle(value string) (f *sqlbuilder.Field) {
+	f = sqlbuilder.NewField(func(in any) (any, error) { return value, nil })
+	f.SetName("title").SetTitle("标题").MergeSchema(sqlbuilder.Schema{
+		Type:      sqlbuilder.Schema_Type_string,
+		MaxLength: 64,
+	}).ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+
+	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnWhereLike)
+	})
+	return f
+}
+func NewTag(tags string) (f *sqlbuilder.Field) {
+	f = sqlbuilder.NewStringField(tags, "tag", "标签", 128)
+	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.Apply(sqlbuilder.ApplyFnWhereFindInColumnSet) // 标签支持结合查询
+	})
 	return f
 }
