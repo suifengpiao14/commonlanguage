@@ -62,10 +62,10 @@ func NewUpdatedAt(time string) (f *sqlbuilder.Field) {
 func NewDeletedAt() (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewField("").SetName("deleted_at").SetTitle("删除时间")
 	f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.Append(sqlbuilder.ValueFnShieldForWrite)
+		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
 	})
 	f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.Append(sqlbuilder.ValueFnShieldForWrite)
+		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
 	})
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.ResetSetValueFn(func(inputValue any) (any, error) {
@@ -298,7 +298,49 @@ func NewTag(tags string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewStringField(tags, "tag", "标签", 128)
 	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		f.Apply(sqlbuilder.ApplyFnWhereFindInColumnSet) // 标签支持结合查询
 	})
+	return f
+}
+
+func NewClassify(classfiy string) (f *sqlbuilder.Field) {
+	f = sqlbuilder.NewStringField(classfiy, "classify", "分类", 64)
+	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	})
+	return f
+}
+func NewFullData(fullData string) (f *sqlbuilder.Field) {
+	f = sqlbuilder.NewStringField(fullData, "fullData", "全量数据", 0).Comment("使用json格式存储记录所有数据(自增id除外)主要用于后续数据异构")
+	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnShield) // 全量数据为json格式，不支持查询
+	})
+	return f
+}
+
+func NewRemark(remark string) (f *sqlbuilder.Field) {
+	f = sqlbuilder.NewStringField(remark, "remark", "备注", 0)
+	return f
+}
+
+func NewOperatorName(operatorName string) *sqlbuilder.Field {
+	f := sqlbuilder.NewStringField(operatorName, "operatorName", "操作人", 32)
+	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 操作人为空，不更新
+	return f
+}
+
+func NewOperatorId[T int | int64 | string](operatorId T) (f *sqlbuilder.Field) {
+	a := any(operatorId)
+	switch v := a.(type) {
+	case int, int64:
+		f = sqlbuilder.NewField(operatorId).SetName("operatorId").SetTitle("操作人").MergeSchema(sqlbuilder.Schema{Maximum: sqlbuilder.UnsinedInt_maximum_bigint})
+	case string:
+		f = sqlbuilder.NewStringField(v, "operatorId", "操作人", 64) // 字符串类型，需要设置最大长度
+
+	}
+	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 操作人为空，不更新
 	return f
 }
