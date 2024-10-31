@@ -7,7 +7,7 @@ import (
 )
 
 // NewId 更新时必填(非必填场景可以不引入改字段)更新只会出现在where中，不会出现在set 中, 查询时可选，支持,分割多个
-func NewId[T int | int64 | uint64 | []int | []int64 | []uint64](autoId T) (field *sqlbuilder.Field) {
+func NewId[T int | uint | int64 | uint64 | []int | []int64 | []uint64](autoId T) (field *sqlbuilder.Field) {
 	field = sqlbuilder.NewField(func(in any) (any, error) { return autoId, nil })
 	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
 		Type:          sqlbuilder.Schema_Type_int,
