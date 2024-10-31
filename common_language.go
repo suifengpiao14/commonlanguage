@@ -60,7 +60,7 @@ func NewUpdatedAt(time string) (f *sqlbuilder.Field) {
 
 // NewDeletedAt 通过删除时间列标记删除
 func NewDeletedAt() (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField("").SetName("deleted_at").SetTitle("删除时间")
+	f = sqlbuilder.NewField("").SetName("deleted_at").SetTitle("删除时间").SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
 	f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
 	})
@@ -80,6 +80,9 @@ func NewDeletedAt() (f *sqlbuilder.Field) {
 		Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.ValueFns.ResetSetValueFn(func(in any) (any, error) {
 				return time.Now().Local().Format(time.DateTime), nil
+			})
+			f.WhereFns.ResetSetValueFn(func(inputValue any) (any, error) { // 同时需要成为where条件
+				return "", nil
 			})
 		},
 	})
@@ -102,7 +105,7 @@ func NewFileName(fileName string) *sqlbuilder.Field {
 func NewStatus[T int | string](status T, enums sqlbuilder.Enums) *sqlbuilder.Field {
 	return sqlbuilder.NewField(status).SetName("status").SetTitle("状态").AppendEnum(enums...).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要再验证前格式化数据，为空直接设置nil
+			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
 		})
 	})
 }
@@ -258,27 +261,27 @@ func NewHeight(height int) (f *sqlbuilder.Field) {
 	return f
 }
 
-func NewOwnerID[T int | string | int64](value T) *sqlbuilder.Field {
+func NewOwnerID[T int | string | int64 | []int | []string | []int64](value T) *sqlbuilder.Field {
 	field := sqlbuilder.NewField(func(in any) (any, error) { return value, nil }).SetName("ownerId").SetTitle("所有者").MergeSchema(sqlbuilder.Schema{
 		Comment:      "所有者ID",
 		Type:         sqlbuilder.Schema_Type_string,
 		MaxLength:    64,
-		MinLength:    1,
-		Minimum:      1,
 		ShieldUpdate: true, // 所有者不可跟新
 	})
 	field.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.SetRequired(true)
 	})
-	field.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+	field.ShieldUpdate(true) // 所有者不能更换,当前记录是所有者属性的描述，所有者发生变更，本条记录失去业务意义
 	return field
+}
+
+func NewUserId[T int | string | int64 | []int | []string | []int64](userId T) *sqlbuilder.Field {
+	f := sqlbuilder.NewField(func(in any) (any, error) { return userId, nil }).SetName("userId").SetTitle("用户ID")
+	return f
 }
 
 func NewIdentifier(value any) *sqlbuilder.Field {
 	f := sqlbuilder.NewField(func(in any) (any, error) { return value, nil }).SetName("identity").SetTitle("标识")
-	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
-	})
 	return f
 }
 
@@ -307,9 +310,6 @@ func NewTag(tags string) (f *sqlbuilder.Field) {
 func NewClassify(classfiy string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewStringField(classfiy, "classify", "分类", 64)
 	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
-	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
-	})
 	return f
 }
 func NewFullData(fullData string) (f *sqlbuilder.Field) {
@@ -336,7 +336,7 @@ func NewOperatorId[T int | int64 | string](operatorId T) (f *sqlbuilder.Field) {
 	a := any(operatorId)
 	switch v := a.(type) {
 	case int, int64:
-		f = sqlbuilder.NewField(operatorId).SetName("operatorId").SetTitle("操作人").MergeSchema(sqlbuilder.Schema{Maximum: sqlbuilder.UnsinedInt_maximum_bigint})
+		f = sqlbuilder.NewField(operatorId).SetName("operatorId").SetTitle("操作人ID").MergeSchema(sqlbuilder.Schema{Maximum: sqlbuilder.UnsinedInt_maximum_bigint})
 	case string:
 		f = sqlbuilder.NewStringField(v, "operatorId", "操作人", 64) // 字符串类型，需要设置最大长度
 
