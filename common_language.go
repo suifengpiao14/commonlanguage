@@ -1,6 +1,7 @@
 package commonlanguage
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/suifengpiao14/sqlbuilder"
@@ -72,7 +73,7 @@ func NewUpdatedAt(time string) (f *sqlbuilder.Field) {
 }
 
 func makeUpkdateLock() (updateLock string) {
-	return string(time.Now().UnixNano())
+	return fmt.Sprintf("%d", time.Now().UnixNano())
 }
 
 func NewUpdateLock(updateLock string) *sqlbuilder.Field {
