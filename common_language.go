@@ -28,13 +28,26 @@ func NewId[T int | uint | int64 | uint64 | []int | []int64 | []uint64](autoId T)
 }
 
 func NewPageIndex(pageIndex int) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewIntField(pageIndex, "pageIndex", "页码", 0).SetTag(sqlbuilder.Field_tag_pageIndex)
+	f = sqlbuilder.NewIntField(pageIndex, "pageIndex", "页码", 0).SetTag(sqlbuilder.Field_tag_pageIndex).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
+		f.WhereFns.Reset()
+	})
 	return f
 }
 
 func NewPageSize(pageSize int) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField(pageSize).SetName("pageSize").SetTitle("每页数量").SetTag(sqlbuilder.Field_tag_pageSize)
+	f = sqlbuilder.NewField(pageSize).SetName("pageSize").SetTitle("每页数量").SetTag(sqlbuilder.Field_tag_pageSize).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		// 有可能用于update 时 的limit 值，所以需要屏蔽更新以及where条件
+		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
+		f.WhereFns.Reset()
+	})
 	return f
+}
+
+func NewUpdateLimit(updateLimit int) *sqlbuilder.Field {
+	return sqlbuilder.NewIntField(updateLimit, "updateLimit", "更新语句的limit", 0).SetTag(sqlbuilder.Field_tag_update_limit).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.Append(sqlbuilder.ValueFnDBFormat(sqlbuilder.ValueFnShieldFn))
+	})
 }
 
 func NewDateTime(dateTime string) *sqlbuilder.Field {
@@ -56,6 +69,22 @@ func NewCompletedAt(time string) (f *sqlbuilder.Field) {
 func NewUpdatedAt(time string) (f *sqlbuilder.Field) {
 	f = NewTime(time).SetName("updatedAt").SetTitle("更新时间").SetTag(sqlbuilder.Tag_updatedAt)
 	return f
+}
+
+func makeUpkdateLock() (updateLock string) {
+	return string(time.Now().UnixNano())
+}
+
+func NewUpdateLock(updateLock string) *sqlbuilder.Field {
+	return sqlbuilder.NewStringField(updateLock, "updateLock", "乐观更新锁", 64).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		// 写入数据库时，使用及时生成
+		f.ValueFns.Append(sqlbuilder.ValueFnOnlyForData(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+			return makeUpkdateLock(), nil
+		}))
+		f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 传入的值，只作用于查询条件，不存在跳过该条件 ,并且限定在update操作场景中
+		})
+	})
 }
 
 // NewDeletedAt 通过删除时间列标记删除

@@ -2,7 +2,7 @@ module github.com/suifengpiao14/commonlanguage
 
 go 1.20
 
-require github.com/suifengpiao14/sqlbuilder v0.1.12
+require github.com/suifengpiao14/sqlbuilder v0.1.16
 
 require (
 	github.com/doug-martin/goqu/v9 v9.19.0 // indirect
