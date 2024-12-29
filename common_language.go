@@ -90,7 +90,8 @@ func NewUpdateLock(updateLock string) *sqlbuilder.Field {
 
 // NewDeletedAt 通过删除时间列标记删除
 func NewDeletedAt() (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField("").SetName("deleted_at").SetTitle("删除时间").SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
+	f = NewTime("").SetName("deleted_at").SetTitle("删除时间").SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
+
 	f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
 	})
