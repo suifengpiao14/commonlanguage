@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/doug-martin/goqu/v9"
 	"github.com/suifengpiao14/sqlbuilder"
 )
 
 // NewId 更新时必填(非必填场景可以不引入改字段)更新只会出现在where中，不会出现在set 中, 查询时可选，支持,分割多个
-func NewId[T int | uint | int64 | uint64 | []int | []string | []int64 | []uint64](autoId T) (field *sqlbuilder.Field) {
+func NewId[T int | uint | int64 | uint64 | []int | []int64 | []uint64](autoId T) (field *sqlbuilder.Field) {
 	field = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return autoId, nil })
 	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
 		Type:          sqlbuilder.Schema_Type_int,
@@ -16,6 +17,24 @@ func NewId[T int | uint | int64 | uint64 | []int | []string | []int64 | []uint64
 		MaxLength:     64,
 		Primary:       true,
 		AutoIncrement: true,
+	})
+	field.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ShieldUpdate(true).SetRequired(true) // id 不能更新
+		f.WhereFns.Append(sqlbuilder.ValueFnForward, sqlbuilder.ValueFnFormatArray)
+
+	})
+	field.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil, sqlbuilder.ValueFnFormatArray)
+	})
+	return field
+}
+
+func NewStringId(id string) (field *sqlbuilder.Field) {
+	field = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return id, nil })
+	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
+		Type:      sqlbuilder.Schema_Type_string,
+		MaxLength: 64,
+		Primary:   true,
 	})
 	field.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ShieldUpdate(true).SetRequired(true) // id 不能更新
@@ -88,6 +107,28 @@ func NewUpdateLock(updateLock string) *sqlbuilder.Field {
 	})
 }
 
+func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enum) *sqlbuilder.Field {
+	return sqlbuilder.NewField(status).SetName("status").SetTitle("状态").AppendEnum(enums...).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
+		})
+
+		deletedWhereValueFn := sqlbuilder.ValueFn{ // 查询的时候,过滤删除的列
+			Layer: sqlbuilder.Value_Layer_OnlyForData,
+			Fn: func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+				expression := goqu.C(f.DBName()).Neq(deletedStatus)
+				return expression, nil
+			},
+		}
+		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.WhereFns.Append(deletedWhereValueFn)
+		})
+		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.WhereFns.Append(deletedWhereValueFn)
+		})
+	})
+}
+
 // NewDeletedAt 通过删除时间列标记删除
 func NewDeletedAt() (f *sqlbuilder.Field) {
 	f = NewTime("").SetName("deleted_at").SetTitle("删除时间").SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
@@ -99,6 +140,12 @@ func NewDeletedAt() (f *sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
 	})
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+			return "", nil
+		})
+		f.WhereFns.Append(sqlbuilder.ValueFnForward)
+	})
+	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
 			return "", nil
 		})
