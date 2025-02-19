@@ -120,12 +120,22 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 				return expression, nil
 			},
 		}
+
+		f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //新增时,忽略该字段
+		})
+
+		f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //更新时,忽略该字段,如果更新时确实需要更新该字段，则另外NewStatus 处理，NewStatusWithDeleted偏重于考虑软删除
+		})
+
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(deletedWhereValueFn)
 		})
 		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(deletedWhereValueFn)
 		})
+
 	})
 }
 
