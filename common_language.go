@@ -113,7 +113,7 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
 		})
 
-		deletedWhereValueFn := sqlbuilder.ValueFn{ // 查询的时候,过滤删除的列
+		deletedWhereValueFnForSelect := sqlbuilder.ValueFn{ // 查询的时候,过滤删除的列
 			Layer: sqlbuilder.Value_Layer_OnlyForData,
 			Fn: func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
 				expression := goqu.C(f.DBName()).Neq(deletedStatus)
@@ -130,13 +130,24 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 		})
 
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(deletedWhereValueFn)
+			f.WhereFns.Append(deletedWhereValueFnForSelect)
 		})
 		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(deletedWhereValueFn)
+			f.WhereFns.Append(deletedWhereValueFnForSelect)
 		})
 
-	})
+		//设置删除场景
+		f.SceneFn(sqlbuilder.SceneFn{
+			Scene: sqlbuilder.SCENE_SQL_DELETE,
+			Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+				f.ValueFns.ResetSetValueFn(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+					return deletedStatus, nil
+				})
+				f.WhereFns.Append(deletedWhereValueFnForSelect)
+			},
+		})
+
+	}).SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
 }
 
 // NewDeletedAt 通过删除时间列标记删除
