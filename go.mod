@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/doug-martin/goqu/v9 v9.19.0
-	github.com/suifengpiao14/sqlbuilder v0.1.27
+	github.com/suifengpiao14/sqlbuilder v0.1.34
 )
 
 require (
@@ -20,7 +20,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/suifengpiao14/cache v0.0.7 // indirect
-	github.com/suifengpiao14/funcs v0.0.22 // indirect
+	github.com/suifengpiao14/funcs v0.0.25 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	gorm.io/driver/mysql v1.5.7 // indirect
