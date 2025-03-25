@@ -116,7 +116,7 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 		deletedWhereValueFnForSelect := sqlbuilder.ValueFn{ // 查询的时候,过滤删除的列
 			Layer: sqlbuilder.Value_Layer_OnlyForData,
 			Fn: func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-				expression := goqu.C(f.DBColumnName().FullName()).Neq(deletedStatus)
+				expression := goqu.I(f.DBColumnName().FullName()).Neq(deletedStatus)
 				return expression, nil
 			},
 		}

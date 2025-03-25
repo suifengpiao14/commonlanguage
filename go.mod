@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	github.com/doug-martin/goqu/v9 v9.19.0
-	github.com/suifengpiao14/sqlbuilder v0.1.35
+	github.com/suifengpiao14/sqlbuilder v0.1.36
 )
 
 require (
