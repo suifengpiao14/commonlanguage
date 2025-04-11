@@ -1,10 +1,10 @@
 module github.com/suifengpiao14/commonlanguage
 
-go 1.20
+go 1.22
 
 require (
 	github.com/doug-martin/goqu/v9 v9.19.0
-	github.com/suifengpiao14/sqlbuilder v0.1.36
+	github.com/suifengpiao14/sqlbuilder v0.1.38
 )
 
 require (
@@ -19,7 +19,7 @@ require (
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/redis/go-redis/v9 v9.7.0 // indirect
 	github.com/spf13/cast v1.6.0 // indirect
-	github.com/suifengpiao14/cache v0.0.7 // indirect
+	github.com/suifengpiao14/cache v0.0.8 // indirect
 	github.com/suifengpiao14/funcs v0.0.25 // indirect
 	golang.org/x/sync v0.10.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
