@@ -206,6 +206,9 @@ func NewStatus[T int | string](status T, enums sqlbuilder.Enums) *sqlbuilder.Fie
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
 		})
+		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
+		})
 	})
 }
 
@@ -267,6 +270,9 @@ func NewEmail(email string) (f *sqlbuilder.Field) {
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
 	})
+	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
+	})
 	return f
 }
 
@@ -279,6 +285,9 @@ func NewPhone(phone string) (f *sqlbuilder.Field) {
 		Format:    Schema_format_phone,
 	})
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
+	})
+	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
 	})
 	return f
@@ -318,6 +327,13 @@ func NewGender[T int | string](val T, man T, woman T) *EnumField {
 			})
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		})
+		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.Schema.Enums.Append(sqlbuilder.Enum{
+				Key:   "",
+				Title: "全部",
+			})
+			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+		})
 	})
 	return genderField
 }
@@ -336,6 +352,9 @@ func NewBooleanField[T int | string](val T, enumTrue T, enumFalse T) *EnumField 
 	genderField.Field.SetName("bool").SetTitle("真假").Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+		})
+		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		})
 	})
@@ -394,12 +413,19 @@ func NewTitle(value string) (f *sqlbuilder.Field) {
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.WhereFns.Append(sqlbuilder.ValueFnWhereLike)
 	})
+	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnWhereLike)
+	})
 	return f
 }
 func NewTag(tags string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewStringField(tags, "tag", "标签", 128)
 	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
+		f.Apply(sqlbuilder.ApplyFnWhereFindInColumnSet) // 标签支持结合查询
+	})
+	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		f.Apply(sqlbuilder.ApplyFnWhereFindInColumnSet) // 标签支持结合查询
 	})
