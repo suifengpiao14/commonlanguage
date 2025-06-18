@@ -107,7 +107,7 @@ func NewUpdateLock(updateLock string) *sqlbuilder.Field {
 	})
 }
 
-func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enum) *sqlbuilder.Field {
+func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sqlbuilder.Enum) *sqlbuilder.Field {
 	return sqlbuilder.NewField(status).SetName("status").SetTitle("状态").AppendEnum(enums...).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
@@ -132,9 +132,6 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(deletedWhereValueFnForSelect)
 		})
-		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(deletedWhereValueFnForSelect)
-		})
 
 		//设置删除场景
 		f.SceneFn(sqlbuilder.SceneFn{
@@ -152,6 +149,11 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 
 // NewDeletedAt 通过删除时间列标记删除
 func NewDeletedAt() (f *sqlbuilder.Field) {
+	return NewDeletedWithEffectValue("")
+}
+
+// NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
+func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
 	f = NewTime("").SetName("deleted_at").SetTitle("删除时间").SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
 
 	f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
@@ -162,13 +164,7 @@ func NewDeletedAt() (f *sqlbuilder.Field) {
 	})
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-			return "", nil
-		})
-		f.WhereFns.Append(sqlbuilder.ValueFnForward)
-	})
-	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-			return "", nil
+			return effectValue, nil
 		})
 		f.WhereFns.Append(sqlbuilder.ValueFnForward)
 	})
@@ -181,11 +177,10 @@ func NewDeletedAt() (f *sqlbuilder.Field) {
 				return time.Now().Local().Format(time.DateTime), nil
 			})
 			f.WhereFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { // 同时需要成为where条件
-				return "", nil
+				return effectValue, nil
 			})
 		},
 	})
-
 	return f
 }
 
@@ -204,9 +199,6 @@ func NewFileName(fileName string) *sqlbuilder.Field {
 func NewStatus[T int | string](status T, enums sqlbuilder.Enums) *sqlbuilder.Field {
 	return sqlbuilder.NewField(status).SetName("status").SetTitle("状态").AppendEnum(enums...).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
-		})
-		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
 		})
 	})
@@ -270,9 +262,6 @@ func NewEmail(email string) (f *sqlbuilder.Field) {
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
 	})
-	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
-	})
 	return f
 }
 
@@ -287,9 +276,7 @@ func NewPhone(phone string) (f *sqlbuilder.Field) {
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
 	})
-	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
-	})
+
 	return f
 }
 
@@ -327,13 +314,6 @@ func NewGender[T int | string](val T, man T, woman T) *EnumField {
 			})
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		})
-		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.Schema.Enums.Append(sqlbuilder.Enum{
-				Key:   "",
-				Title: "全部",
-			})
-			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
-		})
 	})
 	return genderField
 }
@@ -352,9 +332,6 @@ func NewBooleanField[T int | string](val T, enumTrue T, enumFalse T) *EnumField 
 	genderField.Field.SetName("bool").SetTitle("真假").Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
-		})
-		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		})
 	})
@@ -413,19 +390,12 @@ func NewTitle(value string) (f *sqlbuilder.Field) {
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.WhereFns.Append(sqlbuilder.ValueFnWhereLike)
 	})
-	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.WhereFns.Append(sqlbuilder.ValueFnWhereLike)
-	})
 	return f
 }
 func NewTag(tags string) (f *sqlbuilder.Field) {
 	f = sqlbuilder.NewStringField(tags, "tag", "标签", 128)
 	f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
-		f.Apply(sqlbuilder.ApplyFnWhereFindInColumnSet) // 标签支持结合查询
-	})
-	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil)
 		f.Apply(sqlbuilder.ApplyFnWhereFindInColumnSet) // 标签支持结合查询
 	})
