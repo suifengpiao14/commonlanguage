@@ -122,7 +122,17 @@ func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sq
 		}
 
 		f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //新增时,忽略该字段
+			//f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //新增时,忽略该字段
+			//2025-06-26 11:03  新增不能屏蔽，应该从Table.Columns 里面筛选默认值，而不是屏蔽
+			f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+				//value := f.GetTable().Columns.GetByFieldNameMust(f.Name).Default
+				var value any
+				c, ok := f.GetTable().Columns.GetByFieldName(f.Name) // 这里为了兼容 历史没设置table.AddColumn 情况，不使用GetByFieldNameMust
+				if ok {
+					value = c.Default
+				}
+				return value, nil
+			})
 		})
 
 		f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
