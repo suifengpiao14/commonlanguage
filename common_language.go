@@ -104,7 +104,7 @@ func NewUpdateLock(updateLock string) *sqlbuilder.Field {
 	})
 }
 
-func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enum) *sqlbuilder.Field {
+func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sqlbuilder.Enum) *sqlbuilder.Field {
 	return sqlbuilder.NewField(status).SetName("status").SetTitle("状态").AppendEnum(enums...).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 查询的时候,可以为空,需要在验证前格式化数据，为空直接设置nil
@@ -119,7 +119,17 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 		}
 
 		f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //新增时,忽略该字段
+			//f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //新增时,忽略该字段
+			//2025-06-26 11:03  新增不能屏蔽，应该从Table.Columns 里面筛选默认值，而不是屏蔽
+			f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+				//value := f.GetTable().Columns.GetByFieldNameMust(f.Name).Default
+				var value any
+				c, ok := f.GetTable().Columns.GetByFieldName(f.Name) // 这里为了兼容 历史没设置table.AddColumn 情况，不使用GetByFieldNameMust
+				if ok {
+					value = c.Default
+				}
+				return value, nil
+			})
 		})
 
 		f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
@@ -127,9 +137,6 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 		})
 
 		f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.WhereFns.Append(deletedWhereValueFnForSelect)
-		})
-		f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.WhereFns.Append(deletedWhereValueFnForSelect)
 		})
 
@@ -149,6 +156,22 @@ func NewStatusWithDeleted(status int, deletedStatus int, enums ...sqlbuilder.Enu
 
 // NewDeletedAt 通过删除时间列标记删除
 func NewDeletedAt() (f *sqlbuilder.Field) {
+	return NewDeletedWithEffectValue("")
+}
+
+const (
+	Deleted_effect_value_null = "null"
+)
+
+// NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
+func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
+	whereValueFormatFn := func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+		var value any = effectValue
+		if effectValue == Deleted_effect_value_null {
+			value = goqu.I(f.DBColumnName().FullName()).IsNull()
+		}
+		return value, nil
+	}
 	f = NewTime("").SetName("deleted_at").SetTitle("删除时间").SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
 
 	f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
@@ -158,16 +181,7 @@ func NewDeletedAt() (f *sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnShieldForData)
 	})
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-			return "", nil
-		})
-		f.WhereFns.Append(sqlbuilder.ValueFnForward)
-	})
-	f.SceneExists(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-		f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-			return "", nil
-		})
-		f.WhereFns.Append(sqlbuilder.ValueFnForward)
+		f.WhereFns.Append(sqlbuilder.ValueFnDBFormat(whereValueFormatFn))
 	})
 
 	//设置删除场景
@@ -177,12 +191,9 @@ func NewDeletedAt() (f *sqlbuilder.Field) {
 			f.ValueFns.ResetSetValueFn(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
 				return time.Now().Local().Format(time.DateTime), nil
 			})
-			f.WhereFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { // 同时需要成为where条件
-				return "", nil
-			})
+			f.WhereFns.ResetSetValueFn(whereValueFormatFn)
 		},
 	})
-
 	return f
 }
 
@@ -278,6 +289,7 @@ func NewPhone(phone string) (f *sqlbuilder.Field) {
 	f.SceneSelect(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnEmpty2Nil) // 由于value 的 validate 在 whereFn 之前，所以这里需要设置ValueFns
 	})
+
 	return f
 }
 
