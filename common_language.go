@@ -12,11 +12,9 @@ import (
 func NewId[T int | uint | int64 | uint64 | []int | []int64 | []uint64](autoId T) (field *sqlbuilder.Field) {
 	field = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return autoId, nil })
 	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
-		Type:          sqlbuilder.Schema_Type_int,
-		Maximum:       sqlbuilder.Int_maximum_bigint,
-		MaxLength:     64,
-		Primary:       true,
-		AutoIncrement: true,
+		Type:      sqlbuilder.Schema_Type_int,
+		Maximum:   sqlbuilder.Int_maximum_bigint,
+		MaxLength: 64,
 	})
 	field.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ShieldUpdate(true).SetRequired(true) // id 不能更新
@@ -34,7 +32,6 @@ func NewStringId(id string) (field *sqlbuilder.Field) {
 	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 64,
-		Primary:   true,
 	})
 	field.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ShieldUpdate(true).SetRequired(true) // id 不能更新
