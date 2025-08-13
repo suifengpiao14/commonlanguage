@@ -62,7 +62,7 @@ func NewPageSize(pageSize int) (f *sqlbuilder.Field) {
 }
 
 func NewUpdateLimit(updateLimit int) *sqlbuilder.Field {
-	return sqlbuilder.NewIntField(updateLimit, "updateLimit", "更新语句的limit", 0).SetTag(sqlbuilder.Field_tag_update_limit).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
+	return sqlbuilder.NewIntField(updateLimit, "updateLimit", "更新语句的limit", 0).SetTag(sqlbuilder.Field_tag_pageSize).Apply(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 		f.ValueFns.Append(sqlbuilder.ValueFnDBFormat(sqlbuilder.ValueFnShieldFn))
 	})
 }
