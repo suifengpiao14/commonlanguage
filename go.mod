@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/doug-martin/goqu/v9 v9.19.0
-	github.com/suifengpiao14/sqlbuilder v0.1.64
+	github.com/suifengpiao14/sqlbuilder v0.2.2
 )
 
 require (
