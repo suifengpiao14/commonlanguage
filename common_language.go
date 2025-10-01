@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/doug-martin/goqu/v9"
+	"github.com/spf13/cast"
 	"github.com/suifengpiao14/sqlbuilder"
 )
 
@@ -154,9 +155,9 @@ func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sq
 	}).SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
 }
 
-// NewDeletedAt 通过删除时间列标记删除
+// deprecated NewDeletedAt 通过删除时间列标记删除 use NewDeletedAtField
 func NewDeletedAt() (f *sqlbuilder.Field) {
-	return NewDeletedWithEffectValue("")
+	return NewDeletedAtField(func() any { return "" }, func() any { return time.Now().Local().Format(time.DateTime) })
 }
 
 const (
@@ -164,13 +165,13 @@ const (
 )
 
 // NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
-func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
+func NewDeletedAtField(okValue func() any, deletedValue func() any) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
 	whereValueFormatFn := func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
 		if _, ok := inputValue.(goqu.Expression); ok { // 兼容传入表达式的情况，比如goqu.C("deleted_at").IsNull() ，由于这个函数再f.SceneSelect 内添加，所以会最后运行
 			return inputValue, nil
 		}
-		var value any = effectValue
-		if effectValue == Deleted_effect_value_null {
+		var value = okValue()
+		if cast.ToString(value) == Deleted_effect_value_null {
 			value = goqu.I(f.DBColumnName().FullName()).IsNull()
 		}
 		return value, nil
@@ -192,12 +193,17 @@ func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) { // �
 		Scene: sqlbuilder.SCENE_SQL_DELETE,
 		Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.ValueFns.ResetSetValueFn(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-				return time.Now().Local().Format(time.DateTime), nil
+				return deletedValue(), nil
 			})
 			f.WhereFns.ResetSetValueFn(whereValueFormatFn)
 		},
 	})
 	return f
+}
+
+// deprecated user NewDeletedAtField  NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
+func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) {
+	return NewDeletedAtField(func() any { return effectValue }, func() any { return time.Now().Local().Format(time.DateTime) })
 }
 
 func NewCreateTime(createTime string) *sqlbuilder.Field {
