@@ -156,21 +156,29 @@ func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sq
 }
 
 // deprecated NewDeletedAt 通过删除时间列标记删除 use NewDeletedAtField
-func NewDeletedAt() (f *sqlbuilder.Field) {
-	return NewDeletedAtField(func() any { return "" }, func() any { return time.Now().Local().Format(time.DateTime) })
-}
+// func NewDeletedAt() (f *sqlbuilder.Field) {
+// 	return NewDeletedAtField(func() any { return "" }, func() any { return time.Now().Local().Format(time.DateTime) })
+// }
 
 const (
 	Deleted_effect_value_null = "null"
 )
 
 // NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
-func NewDeletedAtField(okValue func() any, deletedValue func() any) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
+func NewDeletedAt(okValueFn func() any, deletedValueFn func() any) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
+	//对于status 字段 0表示删除 1,2,3... 表示有效则okValueFn=func(){return goqu.I(f.DBColumnName().FullName()).Neq(0)}
 	whereValueFormatFn := func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
+		deletedColumnName := f.Name
+		deletedFields := sqlbuilder.Fields(fs).Fielter(func(f sqlbuilder.Field) bool {
+			return f.Name == deletedColumnName
+		})
+		if len(deletedFields) > 1 {
+			return nil, nil // 理论上不应该出现这种情况，如果出现，则忽略该字段的过滤条件(场景场景:status字段也是删除字段)外部会传入status条件,这里就不增加删除条件
+		}
 		if _, ok := inputValue.(goqu.Expression); ok { // 兼容传入表达式的情况，比如goqu.C("deleted_at").IsNull() ，由于这个函数再f.SceneSelect 内添加，所以会最后运行
 			return inputValue, nil
 		}
-		var value = okValue()
+		var value = okValueFn()
 		if cast.ToString(value) == Deleted_effect_value_null {
 			value = goqu.I(f.DBColumnName().FullName()).IsNull()
 		}
@@ -193,7 +201,7 @@ func NewDeletedAtField(okValue func() any, deletedValue func() any) (f *sqlbuild
 		Scene: sqlbuilder.SCENE_SQL_DELETE,
 		Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			f.ValueFns.ResetSetValueFn(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-				return deletedValue(), nil
+				return deletedValueFn(), nil
 			})
 			f.WhereFns.ResetSetValueFn(whereValueFormatFn)
 		},
@@ -203,7 +211,7 @@ func NewDeletedAtField(okValue func() any, deletedValue func() any) (f *sqlbuild
 
 // deprecated user NewDeletedAtField  NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
 func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) {
-	return NewDeletedAtField(func() any { return effectValue }, func() any { return time.Now().Local().Format(time.DateTime) })
+	return NewDeletedAt(func() any { return effectValue }, func() any { return time.Now().Local().Format(time.DateTime) })
 }
 
 func NewCreateTime(createTime string) *sqlbuilder.Field {
