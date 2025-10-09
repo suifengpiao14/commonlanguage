@@ -155,17 +155,17 @@ func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sq
 	}).SetFieldName(sqlbuilder.Field_name_deletedAt) // 标记为删除字段
 }
 
-// deprecated NewDeletedAt 通过删除时间列标记删除 use NewDeletedAtField
-// func NewDeletedAt() (f *sqlbuilder.Field) {
-// 	return NewDeletedAtField(func() any { return "" }, func() any { return time.Now().Local().Format(time.DateTime) })
-// }
+// NewDeletedAt 通过删除时间列标记删除
+func NewDeletedAt() (f *sqlbuilder.Field) {
+	return NewDeletedWithValue(func() any { return "" }, func() any { return time.Now().Local().Format(time.DateTime) })
+}
 
 const (
 	Deleted_effect_value_null = "null"
 )
 
-// NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
-func NewDeletedAt(okValueFn func() any, deletedValueFn func() any) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
+// NewDeletedWithValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
+func NewDeletedWithValue(okValueFn func() any, deletedValueFn func() any) (f *sqlbuilder.Field) { // 有的删除列默认值使用 0000-00-00 00:00:00 作为有效值，所以增加这个方法
 	//对于status 字段 0表示删除 1,2,3... 表示有效则okValueFn=func(){return goqu.I(f.DBColumnName().FullName()).Neq(0)}
 	whereValueFormatFn := func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
 		deletedColumnName := f.Name
@@ -209,9 +209,9 @@ func NewDeletedAt(okValueFn func() any, deletedValueFn func() any) (f *sqlbuilde
 	return f
 }
 
-// deprecated user NewDeletedAtField  NewDeletedWithEffectValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
+// deprecated use   NewDeletedWithValue 通过删除时间列标记删除,增加默认值参数，方便兼容一些数据库的默认值为0000-00-00 00:00:00的情况
 func NewDeletedWithEffectValue(effectValue string) (f *sqlbuilder.Field) {
-	return NewDeletedAt(func() any { return effectValue }, func() any { return time.Now().Local().Format(time.DateTime) })
+	return NewDeletedWithValue(func() any { return effectValue }, func() any { return time.Now().Local().Format(time.DateTime) })
 }
 
 func NewCreateTime(createTime string) *sqlbuilder.Field {
