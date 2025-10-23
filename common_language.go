@@ -11,7 +11,7 @@ import (
 
 // NewId 更新时必填(非必填场景可以不引入改字段)更新只会出现在where中，不会出现在set 中, 查询时可选，支持,分割多个
 func NewId[T int | uint | int64 | uint64 | []int | []int64 | []uint64](autoId T) (field *sqlbuilder.Field) {
-	field = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return autoId, nil })
+	field = sqlbuilder.NewField(autoId)
 	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_int,
 		Maximum:   sqlbuilder.Int_maximum_bigint,
@@ -29,7 +29,7 @@ func NewId[T int | uint | int64 | uint64 | []int | []int64 | []uint64](autoId T)
 }
 
 func NewStringId(id string) (field *sqlbuilder.Field) {
-	field = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return id, nil })
+	field = sqlbuilder.NewField(id)
 	field.SetName("id").SetTitle("ID").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 64,
@@ -122,15 +122,12 @@ func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sq
 		f.SceneInsert(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
 			//f.ValueFns.Append(sqlbuilder.ValueFnShieldForData) //新增时,忽略该字段
 			//2025-06-26 11:03  新增不能屏蔽，应该从Table.Columns 里面筛选默认值，而不是屏蔽
-			f.ValueFns.ResetSetValueFn(func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-				//value := f.GetTable().Columns.GetByFieldNameMust(f.Name).Default
-				var value any
-				c, ok := f.GetTable().Columns.GetByFieldName(f.Name) // 这里为了兼容 历史没设置table.AddColumn 情况，不使用GetByFieldNameMust
-				if ok {
-					value = c.Default
-				}
-				return value, nil
-			})
+			var value any
+			c, ok := f.GetTable().Columns.GetByFieldName(f.Name) // 这里为了兼容 历史没设置table.AddColumn 情况，不使用GetByFieldNameMust
+			if ok {
+				value = c.Default
+			}
+			f.SetValue(value)
 		})
 
 		f.SceneUpdate(func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
@@ -145,9 +142,7 @@ func NewStatusWithDeleted[T int | string](status T, deletedStatus T, enums ...sq
 		f.SceneFn(sqlbuilder.SceneFn{
 			Scene: sqlbuilder.SCENE_SQL_DELETE,
 			Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-				f.ValueFns.ResetSetValueFn(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-					return deletedStatus, nil
-				})
+				f.SetValue(deletedStatus)
 				f.WhereFns.Append(deletedWhereValueFnForSelect)
 			},
 		})
@@ -169,7 +164,7 @@ func NewDeletedWithValue(okValueFn func() any, deletedValueFn func() any) (f *sq
 	//对于status 字段 0表示删除 1,2,3... 表示有效则okValueFn=func(){return goqu.I(f.DBColumnName().FullName()).Neq(0)}
 	whereValueFormatFn := func(inputValue any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
 		deletedColumnName := f.Name
-		deletedFields := sqlbuilder.Fields(fs).Fielter(func(f sqlbuilder.Field) bool {
+		deletedFields := sqlbuilder.Fields(fs).Filter(func(f sqlbuilder.Field) bool {
 			return f.Name == deletedColumnName
 		})
 		if len(deletedFields) > 1 {
@@ -200,10 +195,8 @@ func NewDeletedWithValue(okValueFn func() any, deletedValueFn func() any) (f *sq
 	f.SceneFn(sqlbuilder.SceneFn{
 		Scene: sqlbuilder.SCENE_SQL_DELETE,
 		Fn: func(f *sqlbuilder.Field, fs ...*sqlbuilder.Field) {
-			f.ValueFns.ResetSetValueFn(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) {
-				return deletedValueFn(), nil
-			})
-			f.WhereFns.ResetSetValueFn(whereValueFormatFn)
+			f.SetValue(deletedValueFn())
+			f.WhereFns.Append(sqlbuilder.ValueFnDBFormat(whereValueFormatFn))
 		},
 	})
 	return f
@@ -283,7 +276,7 @@ const (
 )
 
 func NewEmail(email string) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return email, nil }).SetName("email").SetTitle("邮箱").SetFormat(Schema_format_email)
+	f = sqlbuilder.NewField(email).SetName("email").SetTitle("邮箱").SetFormat(Schema_format_email)
 	f.MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 32,
@@ -296,7 +289,7 @@ func NewEmail(email string) (f *sqlbuilder.Field) {
 }
 
 func NewPhone(phone string) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return phone, nil })
+	f = sqlbuilder.NewField(phone)
 	f.SetName("phone").SetTitle("手机号").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 15,
@@ -315,11 +308,11 @@ type EnumField struct {
 	Field *sqlbuilder.Field
 }
 
-func NewEnumField(value any, enums sqlbuilder.Enums) *EnumField {
+func NewEnumField[T sqlbuilder.FieldTypeI](value T, enums sqlbuilder.Enums) *EnumField {
 	e := &EnumField{
 		Enums: enums,
 	}
-	e.Field = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return value, nil }).SetName("enum_column").SetTag("枚举列")
+	e.Field = sqlbuilder.NewField(value).SetName("enum_column").SetTag("枚举列")
 	e.Field.AppendEnum(enums...)
 	return e
 }
@@ -369,7 +362,7 @@ func NewBooleanField[T int | string](val T, enumTrue T, enumFalse T) *EnumField 
 }
 
 func NewAddress(address string) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return address, nil }).SetName("address").SetTitle("地址").MergeSchema(sqlbuilder.Schema{
+	f = sqlbuilder.NewField(address).SetName("address").SetTitle("地址").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 128, // 线上统计最大55个字符，设置128 应该适合大部分场景大小
 	})
@@ -378,7 +371,7 @@ func NewAddress(address string) (f *sqlbuilder.Field) {
 }
 
 func NewHeight(height int) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return height, nil }).SetName("height").SetTitle("高").MergeSchema(sqlbuilder.Schema{
+	f = sqlbuilder.NewField(height).SetName("height").SetTitle("高").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_int,
 		MaxLength: 10000, //日常物体、人、动物高不操过1万m/cm
 	})
@@ -387,7 +380,7 @@ func NewHeight(height int) (f *sqlbuilder.Field) {
 }
 
 func NewOwnerID[T int | string | int64 | []int | []string | []int64](value T) *sqlbuilder.Field {
-	field := sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return value, nil }).SetName("ownerId").SetTitle("所有者").MergeSchema(sqlbuilder.Schema{
+	field := sqlbuilder.NewField(value).SetName("ownerId").SetTitle("所有者").MergeSchema(sqlbuilder.Schema{
 		Comment:      "所有者ID",
 		Type:         sqlbuilder.Schema_Type_string,
 		MaxLength:    64,
@@ -401,17 +394,17 @@ func NewOwnerID[T int | string | int64 | []int | []string | []int64](value T) *s
 }
 
 func NewUserId[T int | string | int64 | []int | []string | []int64](userId T) *sqlbuilder.Field {
-	f := sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return userId, nil }).SetName("userId").SetTitle("用户ID")
+	f := sqlbuilder.NewField(userId).SetName("userId").SetTitle("用户ID")
 	return f
 }
 
-func NewIdentifier(value any) *sqlbuilder.Field {
-	f := sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return value, nil }).SetName("identity").SetTitle("标识")
+func NewIdentifier[T sqlbuilder.FieldTypeI](value T) *sqlbuilder.Field {
+	f := sqlbuilder.NewField(value).SetName("identity").SetTitle("标识")
 	return f
 }
 
 func NewTitle(value string) (f *sqlbuilder.Field) {
-	f = sqlbuilder.NewField(func(in any, f *sqlbuilder.Field, fs ...*sqlbuilder.Field) (any, error) { return value, nil })
+	f = sqlbuilder.NewField(value)
 	f.SetName("title").SetTitle("标题").MergeSchema(sqlbuilder.Schema{
 		Type:      sqlbuilder.Schema_Type_string,
 		MaxLength: 64,
